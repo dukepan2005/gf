@@ -2,7 +2,7 @@ package ghttp
 
 import "net/http"
 
-// NewTestRequest creates and returns a new public request object， only for test
+// NewTestRequest creates and returns a new public request object， only for test middleware
 func NewTestRequest(s *Server, r *http.Request, w http.ResponseWriter) *Request {
 	return newRequest(s, r, w)
 }
