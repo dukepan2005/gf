@@ -193,14 +193,13 @@ func (s *Server) CServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Automatically set the session id to cookie
 	// if it creates a new session id in this request
 	// and SessionCookieOutput is enabled.
-	// @todo read config, not disable it
-	// if s.config.SessionCookieOutput &&
-	// 	request.Session.IsDirty() &&
-	// 	request.Session.MustId() != request.GetSessionId() {
-	// 	request.Cookie.SetSessionId(request.Session.MustId())
-	// }
+	if s.config.SessionCookieOutput &&
+		request.Session.IsDirty() &&
+		request.Session.MustId() != request.GetSessionId() {
+		request.Cookie.SetSessionId(request.Session.MustId())
+	}
 	// Output the cookie content to the client.
-	// request.Cookie.Flush()
+	request.Cookie.Flush()
 	// Output the buffer content to the client.
 	request.Response.Flush()
 	// HOOK - AfterOutput
