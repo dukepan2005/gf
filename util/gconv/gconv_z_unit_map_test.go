@@ -592,10 +592,10 @@ func TestMapsDeep(t *testing.T) {
 	})
 
 	gtest.C(t, func(t *gtest.T) {
-		string_interface_map_list := []map[string]interface{}{}
-		string_interface_map_list = append(string_interface_map_list, map[string]interface{}{"id": 100})
-		string_interface_map_list = append(string_interface_map_list, map[string]interface{}{"id": 200})
-		list := gconv.MapsDeep(string_interface_map_list)
+		stringInterfaceMapList := make([]map[string]interface{}, 0)
+		stringInterfaceMapList = append(stringInterfaceMapList, map[string]interface{}{"id": 100})
+		stringInterfaceMapList = append(stringInterfaceMapList, map[string]interface{}{"id": 200})
+		list := gconv.MapsDeep(stringInterfaceMapList)
 		t.Assert(len(list), 2)
 		t.Assert(list[0]["id"], 100)
 		t.Assert(list[1]["id"], 200)
@@ -604,5 +604,19 @@ func TestMapsDeep(t *testing.T) {
 		t.Assert(len(list), 2)
 		t.Assert(list[0]["id"], 100)
 		t.Assert(list[1]["id"], 200)
+	})
+}
+
+func TestMapWithJsonOmitEmpty(t *testing.T) {
+	gtest.C(t, func(t *gtest.T) {
+		type S struct {
+			Key   string      `json:",omitempty"`
+			Value interface{} `json:",omitempty"`
+		}
+		s := S{
+			Key:   "",
+			Value: 1,
+		}
+		t.Assert(gconv.Map(s), g.Map{"Value": 1})
 	})
 }

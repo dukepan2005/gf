@@ -1,3 +1,9 @@
+// Copyright GoFrame gf Author(https://goframe.org). All Rights Reserved.
+//
+// This Source Code Form is subject to the terms of the MIT License.
+// If a copy of the MIT was not distributed with this file,
+// You can obtain one at https://github.com/gogf/gf.
+
 package cmd
 
 import (
@@ -124,11 +130,17 @@ type cBuildInput struct {
 	PackSrc       string `short:"ps" name:"packSrc" brief:"pack one or more folders into one go file before building"`
 	PackDst       string `short:"pd" name:"packDst" brief:"temporary go file path for pack, this go file will be automatically removed after built" d:"internal/packed/build_pack_data.go"`
 	ExitWhenError bool   `short:"ew" name:"exitWhenError" brief:"exit building when any error occurs, default is false" orphan:"true"`
+	DumpENV       bool   `short:"de" name:"dumpEnv" brief:"dump current go build environment before building binary" orphan:"true"`
 }
 
 type cBuildOutput struct{}
 
 func (c cBuild) Index(ctx context.Context, in cBuildInput) (out *cBuildOutput, err error) {
+	// print used go env
+	if in.DumpENV {
+		_, _ = Env.Index(ctx, cEnvInput{})
+	}
+
 	mlog.SetHeaderPrint(true)
 
 	mlog.Debugf(`build input: %+v`, in)
@@ -236,7 +248,7 @@ func (c cBuild) Index(ctx context.Context, in cBuildInput) (out *cBuildOutput, e
 		if len(customSystems) > 0 && customSystems[0] != "all" && !gstr.InArray(customSystems, system) {
 			continue
 		}
-		for arch, _ := range item {
+		for arch := range item {
 			if len(customArches) > 0 && customArches[0] != "all" && !gstr.InArray(customArches, arch) {
 				continue
 			}

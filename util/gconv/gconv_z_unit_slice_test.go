@@ -38,7 +38,7 @@ func Test_Slice(t *testing.T) {
 		t.AssertEQ(gconv.SliceAny(" [26, 27] "), []interface{}{26, 27})
 	})
 	gtest.C(t, func(t *gtest.T) {
-		s := []*gvar.Var{
+		s := gvar.Vars{
 			gvar.New(1),
 			gvar.New(2),
 		}
@@ -53,7 +53,7 @@ func Test_Slice_Ints(t *testing.T) {
 		t.AssertEQ(gconv.Ints(" [26, 27] "), []int{26, 27})
 		t.AssertEQ(gconv.Ints([]uint8(`[{"id": 1, "name":"john"},{"id": 2, "name":"huang"}]`)), []int{0, 0})
 		t.AssertEQ(gconv.Ints([]bool{true, false}), []int{1, 0})
-		t.AssertEQ(gconv.Ints([][]byte{[]byte{byte(1)}, []byte{byte(2)}}), []int{1, 2})
+		t.AssertEQ(gconv.Ints([][]byte{{byte(1)}, {byte(2)}}), []int{1, 2})
 	})
 }
 
@@ -76,9 +76,9 @@ func Test_Slice_Int32s(t *testing.T) {
 		t.AssertEQ(gconv.Int32s([]bool{true, false}), []int32{1, 0})
 		t.AssertEQ(gconv.Int32s([]float32{1, 2}), []int32{1, 2})
 		t.AssertEQ(gconv.Int32s([]float64{1, 2}), []int32{1, 2})
-		t.AssertEQ(gconv.Int32s([][]byte{[]byte{byte(1)}, []byte{byte(2)}}), []int32{1, 2})
+		t.AssertEQ(gconv.Int32s([][]byte{{byte(1)}, {byte(2)}}), []int32{1, 2})
 
-		s := []*gvar.Var{
+		s := gvar.Vars{
 			gvar.New(1),
 			gvar.New(2),
 		}
@@ -105,9 +105,9 @@ func Test_Slice_Int64s(t *testing.T) {
 		t.AssertEQ(gconv.Int64s([]bool{true, false}), []int64{1, 0})
 		t.AssertEQ(gconv.Int64s([]float32{1, 2}), []int64{1, 2})
 		t.AssertEQ(gconv.Int64s([]float64{1, 2}), []int64{1, 2})
-		t.AssertEQ(gconv.Int64s([][]byte{[]byte{byte(1)}, []byte{byte(2)}}), []int64{1, 2})
+		t.AssertEQ(gconv.Int64s([][]byte{{byte(1)}, {byte(2)}}), []int64{1, 2})
 
-		s := []*gvar.Var{
+		s := gvar.Vars{
 			gvar.New(1),
 			gvar.New(2),
 		}
@@ -135,9 +135,9 @@ func Test_Slice_Uints(t *testing.T) {
 		t.AssertEQ(gconv.Uints([]bool{true, false}), []uint{1, 0})
 		t.AssertEQ(gconv.Uints([]float32{1, 2}), []uint{1, 2})
 		t.AssertEQ(gconv.Uints([]float64{1, 2}), []uint{1, 2})
-		t.AssertEQ(gconv.Uints([][]byte{[]byte{byte(1)}, []byte{byte(2)}}), []uint{1, 2})
+		t.AssertEQ(gconv.Uints([][]byte{{byte(1)}, {byte(2)}}), []uint{1, 2})
 
-		s := []*gvar.Var{
+		s := gvar.Vars{
 			gvar.New(1),
 			gvar.New(2),
 		}
@@ -165,9 +165,9 @@ func Test_Slice_Uint32s(t *testing.T) {
 		t.AssertEQ(gconv.Uint32s([]bool{true, false}), []uint32{1, 0})
 		t.AssertEQ(gconv.Uint32s([]float32{1, 2}), []uint32{1, 2})
 		t.AssertEQ(gconv.Uint32s([]float64{1, 2}), []uint32{1, 2})
-		t.AssertEQ(gconv.Uint32s([][]byte{[]byte{byte(1)}, []byte{byte(2)}}), []uint32{1, 2})
+		t.AssertEQ(gconv.Uint32s([][]byte{{byte(1)}, {byte(2)}}), []uint32{1, 2})
 
-		s := []*gvar.Var{
+		s := gvar.Vars{
 			gvar.New(1),
 			gvar.New(2),
 		}
@@ -195,9 +195,9 @@ func Test_Slice_Uint64s(t *testing.T) {
 		t.AssertEQ(gconv.Uint64s([]bool{true, false}), []uint64{1, 0})
 		t.AssertEQ(gconv.Uint64s([]float32{1, 2}), []uint64{1, 2})
 		t.AssertEQ(gconv.Uint64s([]float64{1, 2}), []uint64{1, 2})
-		t.AssertEQ(gconv.Uint64s([][]byte{[]byte{byte(1)}, []byte{byte(2)}}), []uint64{1, 2})
+		t.AssertEQ(gconv.Uint64s([][]byte{{byte(1)}, {byte(2)}}), []uint64{1, 2})
 
-		s := []*gvar.Var{
+		s := gvar.Vars{
 			gvar.New(1),
 			gvar.New(2),
 		}
@@ -224,7 +224,7 @@ func Test_Slice_Float32s(t *testing.T) {
 		t.AssertEQ(gconv.Float32s([]float32{123}), []float32{123})
 		t.AssertEQ(gconv.Float32s([]float64{123}), []float32{123})
 
-		s := []*gvar.Var{
+		s := gvar.Vars{
 			gvar.New(1.1),
 			gvar.New(2.1),
 		}
@@ -298,7 +298,7 @@ func Test_Slice_Empty(t *testing.T) {
 		t.Assert(gconv.Strings(nil), nil)
 	})
 	gtest.C(t, func(t *gtest.T) {
-		t.AssertEQ(gconv.SliceAny(""), []interface{}{})
+		t.AssertEQ(gconv.SliceAny(""), []interface{}{""})
 		t.Assert(gconv.SliceAny(nil), nil)
 	})
 }

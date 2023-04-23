@@ -12,11 +12,13 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/internal/json"
 	"github.com/gogf/gf/v2/net/goai"
 	"github.com/gogf/gf/v2/test/gtest"
 	"github.com/gogf/gf/v2/util/gmeta"
+	"github.com/gogf/gf/v2/util/gtag"
 )
 
 func Test_Basic(t *testing.T) {
@@ -1044,5 +1046,121 @@ func Test_NameFromJsonTag(t *testing.T) {
 		t.AssertNil(err)
 		fmt.Println(string(b))
 		t.Assert(b, `{"openapi":"3.0.0","components":{"schemas":{"github.com.gogf.gf.v2.net.goai_test.CreateReq":{"properties":{"nick_name":{"format":"string","properties":{},"type":"string"}},"type":"object"}}},"info":{"title":"","version":""},"paths":null}`)
+	})
+}
+
+func TestOpenApiV3_PathSecurity(t *testing.T) {
+	type CommonResponse struct {
+		Code    int         `json:"code"    description:"Error code"`
+		Message string      `json:"message" description:"Error message"`
+		Data    interface{} `json:"data"    description:"Result data for certain request according API definition"`
+	}
+
+	type Req struct {
+		gmeta.Meta `method:"PUT" security:"apiKey"` // 这里的apiKey要和openApi定义的key一致
+		Product    string                           `json:"product" v:"required" description:"Unique product key"`
+		Name       string                           `json:"name"    v:"required" description:"Instance name"`
+	}
+	type Res struct{}
+
+	f := func(ctx context.Context, req *Req) (res *Res, err error) {
+		return
+	}
+
+	gtest.C(t, func(t *gtest.T) {
+		var (
+			err error
+			oai = goai.New()
+		)
+
+		oai.Config.CommonResponse = CommonResponse{}
+		oai.Components = goai.Components{
+			SecuritySchemes: goai.SecuritySchemes{
+				"apiKey": goai.SecuritySchemeRef{
+					Ref: "",
+					Value: &goai.SecurityScheme{
+						// 此处type是openApi的规定，详见 https://swagger.io/docs/specification/authentication/api-keys/
+						Type: "apiKey",
+						In:   "header",
+						Name: "X-API-KEY",
+					},
+				},
+			},
+		}
+		err = oai.Add(goai.AddInput{
+			Path:   "/index",
+			Object: f,
+		})
+		t.AssertNil(err)
+		// Schema asserts.
+		fmt.Println(oai.String())
+		t.Assert(len(oai.Components.Schemas.Map()), 3)
+		t.Assert(len(oai.Components.SecuritySchemes), 1)
+		t.Assert(oai.Components.SecuritySchemes["apiKey"].Value.Type, "apiKey")
+		t.Assert(len(oai.Paths), 1)
+		t.Assert(len(oai.Paths["/index"].Put.Responses["200"].Value.Content["application/json"].Schema.Value.Properties.Map()), 3)
+	})
+}
+
+func Test_EmptyJsonNameWithOmitEmpty(t *testing.T) {
+	type CreateResourceReq struct {
+		gmeta.Meta `path:"/CreateResourceReq" method:"POST" tags:"default"`
+		Name       string `description:"实例名称" json:",omitempty"`
+		Product    string `description:"业务类型" json:",omitempty"`
+	}
+
+	gtest.C(t, func(t *gtest.T) {
+		var (
+			err error
+			oai = goai.New()
+			req = new(CreateResourceReq)
+		)
+		err = oai.Add(goai.AddInput{
+			Object: req,
+		})
+		t.AssertNil(err)
+		var reqKey = "github.com.gogf.gf.v2.net.goai_test.CreateResourceReq"
+		t.AssertNE(oai.Components.Schemas.Get(reqKey).Value.Properties.Get("Name"), nil)
+		t.AssertNE(oai.Components.Schemas.Get(reqKey).Value.Properties.Get("Product"), nil)
+		t.Assert(oai.Components.Schemas.Get(reqKey).Value.Properties.Get("None"), nil)
+	})
+}
+
+func Test_Enums(t *testing.T) {
+	type Status string
+	const (
+		StatusA Status = "a"
+		StatusB Status = "b"
+	)
+	type Req struct {
+		gmeta.Meta `path:"/CreateResourceReq" method:"POST" tags:"default"`
+		Name       string    `dc:"实例名称" json:",omitempty"`
+		Status1    Status    `dc:"状态1" json:",omitempty"`
+		Status2    *Status   `dc:"状态2" json:",omitempty"`
+		Status3    []Status  `dc:"状态2" json:",omitempty"`
+		Status4    []*Status `dc:"状态2" json:",omitempty"`
+	}
+
+	gtest.C(t, func(t *gtest.T) {
+		var (
+			err error
+			oai = goai.New()
+			req = new(Req)
+		)
+		err = gtag.SetGlobalEnums(gjson.MustEncodeString(g.Map{
+			"github.com/gogf/gf/v2/net/goai_test.Status": []interface{}{StatusA, StatusB},
+		}))
+		t.AssertNil(err)
+
+		err = oai.Add(goai.AddInput{
+			Object: req,
+		})
+		t.AssertNil(err)
+		var reqKey = "github.com.gogf.gf.v2.net.goai_test.Req"
+		t.AssertNE(oai.Components.Schemas.Get(reqKey).Value.Properties.Get("Name"), nil)
+		t.Assert(oai.Components.Schemas.Get(reqKey).Value.Properties.Get("Status1").Value.Enum, g.Slice{"a", "b"})
+		t.Assert(oai.Components.Schemas.Get(reqKey).Value.Properties.Get("Status2").Value.Enum, g.Slice{"a", "b"})
+		t.Assert(oai.Components.Schemas.Get(reqKey).Value.Properties.Get("Status3").Value.Items.Value.Enum, g.Slice{"a", "b"})
+		t.Assert(oai.Components.Schemas.Get(reqKey).Value.Properties.Get("Status4").Value.Items.Value.Enum, g.Slice{"a", "b"})
 	})
 }

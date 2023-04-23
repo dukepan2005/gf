@@ -1,3 +1,9 @@
+// Copyright GoFrame gf Author(https://goframe.org). All Rights Reserved.
+//
+// This Source Code Form is subject to the terms of the MIT License.
+// If a copy of the MIT was not distributed with this file,
+// You can obtain one at https://github.com/gogf/gf.
+
 package main
 
 import (
@@ -69,7 +75,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	command.Run(ctx)
+	err = command.RunWithError(ctx)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // zsh alias "git fetch" conflicts checks.
