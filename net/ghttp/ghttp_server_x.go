@@ -7,17 +7,26 @@ import (
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/internal/intlog"
-
+	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/gsession"
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
 // InitSession initialize session manager for test
-func (s *Server) InitSession() {
+func (s *Server) InitSession() error {
+	sessionStoragePath := gfile.Join(s.config.SessionPath, s.config.Name)
+	if !gfile.Exists(sessionStoragePath) {
+		if err := gfile.Mkdir(sessionStoragePath); err != nil {
+			return gerror.Wrapf(err, `mkdir failed for "%s"`, sessionStoragePath)
+		}
+	}
+
+	s.config.SessionStorage = gsession.NewStorageFile(sessionStoragePath, s.config.SessionMaxAge)
 	s.sessionManager = gsession.New(
 		s.config.SessionMaxAge,
 		s.config.SessionStorage,
 	)
+	return nil
 }
 
 // HandlePreBindItems is called when server starts, which does really route registering to the server.
