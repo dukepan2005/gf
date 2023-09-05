@@ -211,12 +211,14 @@ func (s *Server) checkAndCreateFuncInfo(f interface{}, pkgPath, structName, meth
 	return
 }
 
+// trimGeneric removes type definitions string from response type name if generic
 func trimGeneric(structName string) string {
 	var (
-		leftBraceIndex  = strings.Index(structName, "[")
-		rightBraceIndex = strings.Index(structName, "]")
+		leftBraceIndex  = strings.LastIndex(structName, "[")
+		rightBraceIndex = strings.LastIndex(structName, "]")
 	)
-	if leftBraceIndex == -1 || rightBraceIndex == -1 {
+	if leftBraceIndex == -1 && rightBraceIndex == -1 {
+		// no generic type usage.
 		return structName
 	}
 	return structName[:leftBraceIndex]

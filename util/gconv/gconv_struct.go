@@ -100,7 +100,7 @@ func doStruct(params interface{}, pointer interface{}, mapping map[string]string
 			if v, ok := exception.(error); ok && gerror.HasStack(v) {
 				err = v
 			} else {
-				err = gerror.NewCodeSkipf(gcode.CodeInternalError, 1, "%+v", exception)
+				err = gerror.NewCodeSkipf(gcode.CodeInternalPanic, 1, "%+v", exception)
 			}
 		}
 	}()
@@ -144,7 +144,7 @@ func doStruct(params interface{}, pointer interface{}, mapping map[string]string
 	}
 
 	// custom convert try first
-	if ok, err := callCustomConverter(paramsReflectValue, pointerReflectValue); ok {
+	if ok, err = callCustomConverter(paramsReflectValue, pointerReflectValue); ok {
 		return err
 	}
 
@@ -184,8 +184,14 @@ func doStruct(params interface{}, pointer interface{}, mapping map[string]string
 	// For example, if `pointer` is **User, then `elem` is *User, which is a pointer to User.
 	if pointerElemReflectValue.Kind() == reflect.Ptr {
 		if !pointerElemReflectValue.IsValid() || pointerElemReflectValue.IsNil() {
-			e := reflect.New(pointerElemReflectValue.Type().Elem()).Elem()
-			pointerElemReflectValue.Set(e.Addr())
+			e := reflect.New(pointerElemReflectValue.Type().Elem())
+			pointerElemReflectValue.Set(e)
+			defer func() {
+				if err != nil {
+					// If it is converted failed, it reset the `pointer` to nil.
+					pointerReflectValue.Elem().Set(reflect.Zero(pointerReflectValue.Type().Elem()))
+				}
+			}()
 		}
 		// if v, ok := pointerElemReflectValue.Interface().(iUnmarshalValue); ok {
 		//	return v.UnmarshalValue(params)
@@ -200,7 +206,7 @@ func doStruct(params interface{}, pointer interface{}, mapping map[string]string
 
 	// paramsMap is the map[string]interface{} type variable for params.
 	// DO NOT use MapDeep here.
-	paramsMap := Map(paramsInterface)
+	paramsMap := doMapConvert(paramsInterface, recursiveTypeAuto, true)
 	if paramsMap == nil {
 		return gerror.NewCodef(
 			gcode.CodeInvalidParameter,
@@ -633,7 +639,7 @@ func bindVarToReflectValue(structFieldValue reflect.Value, value interface{}, ma
 		defer func() {
 			if exception := recover(); exception != nil {
 				err = gerror.NewCodef(
-					gcode.CodeInternalError,
+					gcode.CodeInternalPanic,
 					`cannot convert value "%+v" to type "%s":%+v`,
 					value,
 					structFieldValue.Type().String(),
