@@ -30,7 +30,7 @@ const (
 	DefaultPermOpen = os.FileMode(0666)
 
 	// DefaultPermCopy is the default perm for file/folder copy.
-	DefaultPermCopy = os.FileMode(0777)
+	DefaultPermCopy = os.FileMode(0755)
 )
 
 var (
@@ -64,7 +64,7 @@ func Mkdir(path string) (err error) {
 	return nil
 }
 
-// Create creates file with given `path` recursively.
+// Create creates a file with given `path` recursively.
 // The parameter `path` is suggested to be absolute path.
 func Create(path string) (*os.File, error) {
 	dir := Dir(path)
