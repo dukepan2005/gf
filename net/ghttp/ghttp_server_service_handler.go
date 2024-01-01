@@ -197,6 +197,30 @@ func (s *Server) checkAndCreateFuncInfo(
 		return
 	}
 
+	if reflectType.In(1).Kind() != reflect.Ptr ||
+		(reflectType.In(1).Kind() == reflect.Ptr && reflectType.In(1).Elem().Kind() != reflect.Struct) {
+		err = gerror.NewCodef(
+			gcode.CodeInvalidParameter,
+			`invalid handler: defined as "%s", but the second input parameter should be type of pointer to struct like "*BizReq"`,
+			reflectType.String(),
+		)
+		return
+	}
+
+	// Do not enable this logic, as many users are already using none struct pointer type
+	// as the first output parameter.
+	/*
+		if reflectType.Out(0).Kind() != reflect.Ptr ||
+			(reflectType.Out(0).Kind() == reflect.Ptr && reflectType.Out(0).Elem().Kind() != reflect.Struct) {
+			err = gerror.NewCodef(
+				gcode.CodeInvalidParameter,
+				`invalid handler: defined as "%s", but the first output parameter should be type of pointer to struct like "*BizRes"`,
+				reflectType.String(),
+			)
+			return
+		}
+	*/
+
 	// The request struct should be named as `xxxReq`.
 	reqStructName := trimGeneric(reflectType.In(1).String())
 	if !gstr.HasSuffix(reqStructName, `Req`) {
@@ -233,13 +257,11 @@ func (s *Server) checkAndCreateFuncInfo(
 		return funcInfo, err
 	}
 	funcInfo.ReqStructFields = fields
-	funcInfo.Func = createRouterFunc(funcInfo, inputObject, inputObjectPtr)
+	funcInfo.Func = createRouterFunc(funcInfo)
 	return
 }
 
-func createRouterFunc(
-	funcInfo handlerFuncInfo, inputObject reflect.Value, inputObjectPtr interface{},
-) func(r *Request) {
+func createRouterFunc(funcInfo handlerFuncInfo) func(r *Request) {
 	return func(r *Request) {
 		var (
 			ok          bool
@@ -248,11 +270,20 @@ func createRouterFunc(
 				reflect.ValueOf(r.Context()),
 			}
 		)
-		r.error = r.Parse(inputObjectPtr)
-		if r.error != nil {
-			return
+		if funcInfo.Type.NumIn() == 2 {
+			var inputObject reflect.Value
+			if funcInfo.Type.In(1).Kind() == reflect.Ptr {
+				inputObject = reflect.New(funcInfo.Type.In(1).Elem())
+				r.error = r.Parse(inputObject.Interface())
+			} else {
+				inputObject = reflect.New(funcInfo.Type.In(1).Elem()).Elem()
+				r.error = r.Parse(inputObject.Addr().Interface())
+			}
+			if r.error != nil {
+				return
+			}
+			inputValues = append(inputValues, inputObject)
 		}
-		inputValues = append(inputValues, inputObject)
 		// Call handler with dynamic created parameter values.
 		results := funcInfo.Value.Call(inputValues)
 		switch len(results) {

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+coverage=$1
+
 # find all path that contains go.mod.
 for file in `find . -name go.mod`; do
     dirpath=$(dirname $file)
@@ -10,25 +12,43 @@ for file in `find . -name go.mod`; do
         continue 1
     fi
 
-    # package kuhecm needs golang >= v1.18
+    # package kuhecm needs golang >= v1.19
     if [ "kubecm" = $(basename $dirpath) ]; then
-        if ! go version|grep -q "1.19"; then
+        continue 1
+        if ! go version|grep -qE "go1.19|go1.[2-9][0-9]"; then
           echo "ignore kubecm as go version: $(go version)"
+          continue 1
+        fi
+    fi
+
+    # package consul needs golang >= v1.19
+    if [ "consul" = $(basename $dirpath) ]; then
+        continue 1
+        if ! go version|grep -qE "go1.19|go1.[2-9][0-9]"; then
+          echo "ignore consul as go version: $(go version)"
           continue 1
         fi
     fi
 
     # package etcd needs golang >= v1.19
     if [ "etcd" = $(basename $dirpath) ]; then
-        if ! go version|grep -q "1.19"; then
+        if ! go version|grep -qE "go1.19|go1.[2-9][0-9]"; then
           echo "ignore etcd as go version: $(go version)"
           continue 1
         fi
     fi
 
-    # package example needs golang >= v1.19
+    # package polaris needs golang >= v1.19
+    if [ "polaris" = $(basename $dirpath) ]; then
+        if ! go version|grep -qE "go1.19|go1.[2-9][0-9]"; then
+          echo "ignore polaris as go version: $(go version)"
+          continue 1
+        fi
+    fi
+
+    # package example needs golang >= v1.20
     if [ "example" = $(basename $dirpath) ]; then
-        if ! go version|grep -q "1.19"; then
+        if ! go version|grep -qE "go1.[2-9][0-9]"; then
           echo "ignore example as go version: $(go version)"
           continue 1
         fi
@@ -36,7 +56,7 @@ for file in `find . -name go.mod`; do
 
     # package otlpgrpc needs golang >= v1.20
     if [ "otlpgrpc" = $(basename $dirpath) ]; then
-        if ! go version|grep -q "1.20"; then
+        if ! go version|grep -qE "go1.[2-9][0-9]"; then
           echo "ignore otlpgrpc as go version: $(go version)"
           continue 1
         fi
@@ -44,7 +64,7 @@ for file in `find . -name go.mod`; do
 
     # package otlphttp needs golang >= v1.20
     if [ "otlphttp" = $(basename $dirpath) ]; then
-        if ! go version|grep -q "1.20"; then
+        if ! go version|grep -qE "go1.[2-9][0-9]"; then
           echo "ignore otlphttp as go version: $(go version)"
           continue 1
         fi
@@ -53,10 +73,15 @@ for file in `find . -name go.mod`; do
     cd $dirpath
     go mod tidy
     go build ./...
-    go test ./... -race -coverprofile=coverage.out -covermode=atomic -coverpkg=./...,github.com/gogf/gf/... || exit 1
+    # check coverage
+    if [ "${coverage}" = "coverage" ]; then
+      go test ./... -race -coverprofile=coverage.out -covermode=atomic -coverpkg=./...,github.com/gogf/gf/... || exit 1
 
-    if grep -q "/gogf/gf/.*/v2" go.mod; then
+      if grep -q "/gogf/gf/.*/v2" go.mod; then
         sed -i "s/gogf\/gf\(\/.*\)\/v2/gogf\/gf\/v2\1/g" coverage.out
+      fi
+    else
+      go test ./... -race || exit 1
     fi
 
     cd -
