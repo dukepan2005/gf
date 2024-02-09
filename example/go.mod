@@ -1,27 +1,28 @@
 module github.com/gogf/gf/example
 
-go 1.20
+go 1.18
 
 require (
-	github.com/gogf/gf/contrib/config/apollo/v2 v2.6.1
-	github.com/gogf/gf/contrib/config/consul/v2 v2.6.1
-	github.com/gogf/gf/contrib/config/kubecm/v2 v2.6.1
-	github.com/gogf/gf/contrib/config/nacos/v2 v2.6.1
-	github.com/gogf/gf/contrib/config/polaris/v2 v2.6.1
-	github.com/gogf/gf/contrib/drivers/mysql/v2 v2.6.1
-	github.com/gogf/gf/contrib/nosql/redis/v2 v2.6.1
-	github.com/gogf/gf/contrib/registry/etcd/v2 v2.6.1
-	github.com/gogf/gf/contrib/registry/file/v2 v2.6.1
-	github.com/gogf/gf/contrib/registry/nacos/v2 v2.5.6
-	github.com/gogf/gf/contrib/registry/polaris/v2 v2.6.1
-	github.com/gogf/gf/contrib/rpc/grpcx/v2 v2.6.1
-	github.com/gogf/gf/contrib/trace/otlpgrpc/v2 v2.6.1
-	github.com/gogf/gf/contrib/trace/otlphttp/v2 v2.6.1
-	github.com/gogf/gf/v2 v2.6.1
+	github.com/gogf/gf/contrib/config/apollo/v2 v2.6.3
+	github.com/gogf/gf/contrib/config/consul/v2 v2.6.3
+	github.com/gogf/gf/contrib/config/kubecm/v2 v2.6.3
+	github.com/gogf/gf/contrib/config/nacos/v2 v2.6.3
+	github.com/gogf/gf/contrib/config/polaris/v2 v2.6.3
+	github.com/gogf/gf/contrib/drivers/mysql/v2 v2.6.3
+	github.com/gogf/gf/contrib/nosql/redis/v2 v2.6.3
+	github.com/gogf/gf/contrib/registry/etcd/v2 v2.6.3
+	github.com/gogf/gf/contrib/registry/file/v2 v2.6.3
+	github.com/gogf/gf/contrib/registry/nacos/v2 v2.6.3
+	github.com/gogf/gf/contrib/registry/polaris/v2 v2.6.3
+	github.com/gogf/gf/contrib/rpc/grpcx/v2 v2.6.3
+	github.com/gogf/gf/contrib/trace/otlpgrpc/v2 v2.6.3
+	github.com/gogf/gf/contrib/trace/otlphttp/v2 v2.6.3
+	github.com/gogf/gf/v2 v2.6.3
 	github.com/hashicorp/consul/api v1.24.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/nacos-group/nacos-sdk-go v1.1.4
 	github.com/polarismesh/polaris-go v1.5.5
+	github.com/prometheus/client_golang v1.17.0
 	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
@@ -93,7 +94,6 @@ require (
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/polarismesh/specification v1.4.1 // indirect
-	github.com/prometheus/client_golang v1.17.0 // indirect
 	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect
@@ -156,6 +156,7 @@ replace (
 	github.com/gogf/gf/contrib/nosql/redis/v2 => ../contrib/nosql/redis/
 	github.com/gogf/gf/contrib/registry/etcd/v2 => ../contrib/registry/etcd/
 	github.com/gogf/gf/contrib/registry/file/v2 => ../contrib/registry/file/
+	github.com/gogf/gf/contrib/registry/nacos/v2 => ../contrib/registry/nacos/
 	github.com/gogf/gf/contrib/registry/polaris/v2 => ../contrib/registry/polaris/
 	github.com/gogf/gf/contrib/rpc/grpcx/v2 => ../contrib/rpc/grpcx/
 	github.com/gogf/gf/contrib/trace/otlpgrpc/v2 => ../contrib/trace/otlpgrpc

@@ -15,7 +15,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/internal/reflection"
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/gogf/gf/v2/util/gutil"
@@ -243,62 +242,24 @@ func (m *Model) doInsertWithOption(ctx context.Context, insertOption InsertOptio
 		return nil, gerror.NewCode(gcode.CodeMissingParameter, "inserting into table with empty data")
 	}
 	var (
-		list            List
-		now             = gtime.Now()
-		fieldNameCreate = m.getSoftFieldNameCreated("", m.tablesInit)
-		fieldNameUpdate = m.getSoftFieldNameUpdated("", m.tablesInit)
+		list                             List
+		stm                              = m.softTimeMaintainer()
+		fieldNameCreate, fieldTypeCreate = stm.GetFieldNameAndTypeForCreate(ctx, "", m.tablesInit)
+		fieldNameUpdate, fieldTypeUpdate = stm.GetFieldNameAndTypeForUpdate(ctx, "", m.tablesInit)
+		fieldNameDelete, fieldTypeDelete = stm.GetFieldNameAndTypeForDelete(ctx, "", m.tablesInit)
 	)
+	// m.data was already converted to type List/Map by function Data
 	newData, err := m.filterDataForInsertOrUpdate(m.data)
 	if err != nil {
 		return nil, err
 	}
 	// It converts any data to List type for inserting.
 	switch value := newData.(type) {
-	case Result:
-		list = value.List()
-
-	case Record:
-		list = List{value.Map()}
-
 	case List:
 		list = value
 
 	case Map:
 		list = List{value}
-
-	default:
-		// It uses gconv.Map here to simply fo the type converting from interface{} to map[string]interface{},
-		// as there's another MapOrStructToMapDeep in next logic to do the deep converting.
-		reflectInfo := reflection.OriginValueAndKind(newData)
-		switch reflectInfo.OriginKind {
-		// If it's slice type, it then converts it to List type.
-		case reflect.Slice, reflect.Array:
-			list = make(List, reflectInfo.OriginValue.Len())
-			for i := 0; i < reflectInfo.OriginValue.Len(); i++ {
-				list[i] = anyValueToMapBeforeToRecord(reflectInfo.OriginValue.Index(i).Interface())
-			}
-
-		case reflect.Map:
-			list = List{anyValueToMapBeforeToRecord(value)}
-
-		case reflect.Struct:
-			if v, ok := value.(iInterfaces); ok {
-				array := v.Interfaces()
-				list = make(List, len(array))
-				for i := 0; i < len(array); i++ {
-					list[i] = anyValueToMapBeforeToRecord(array[i])
-				}
-			} else {
-				list = List{anyValueToMapBeforeToRecord(value)}
-			}
-
-		default:
-			return result, gerror.NewCodef(
-				gcode.CodeInvalidParameter,
-				"unsupported data list type: %v",
-				reflectInfo.InputValue.Type(),
-			)
-		}
 	}
 
 	if len(list) < 1 {
@@ -309,10 +270,22 @@ func (m *Model) doInsertWithOption(ctx context.Context, insertOption InsertOptio
 	if !m.unscoped && (fieldNameCreate != "" || fieldNameUpdate != "") {
 		for k, v := range list {
 			if fieldNameCreate != "" {
-				v[fieldNameCreate] = now
+				fieldCreateValue := stm.GetValueByFieldTypeForCreateOrUpdate(ctx, fieldTypeCreate, false)
+				if fieldCreateValue != nil {
+					v[fieldNameCreate] = fieldCreateValue
+				}
 			}
 			if fieldNameUpdate != "" {
-				v[fieldNameUpdate] = now
+				fieldUpdateValue := stm.GetValueByFieldTypeForCreateOrUpdate(ctx, fieldTypeUpdate, false)
+				if fieldUpdateValue != nil {
+					v[fieldNameUpdate] = fieldUpdateValue
+				}
+			}
+			if fieldNameDelete != "" {
+				fieldDeleteValue := stm.GetValueByFieldTypeForCreateOrUpdate(ctx, fieldTypeDelete, true)
+				if fieldDeleteValue != nil {
+					v[fieldNameDelete] = fieldDeleteValue
+				}
 			}
 			list[k] = v
 		}
