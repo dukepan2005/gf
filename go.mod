@@ -1,4 +1,5 @@
-module github.com/gogf/gf/v2
+// module github.com/gogf/gf/v2
+module github.com/dukepan2005/gf/v2
 
 go 1.18
 
