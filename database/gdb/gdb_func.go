@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/container/garray"
+	"github.com/gogf/gf/v2/encoding/ghash"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/internal/empty"
 	"github.com/gogf/gf/v2/internal/intlog"
@@ -58,12 +59,13 @@ type iTableName interface {
 }
 
 const (
-	OrmTagForStruct    = "orm"
-	OrmTagForTable     = "table"
-	OrmTagForWith      = "with"
-	OrmTagForWithWhere = "where"
-	OrmTagForWithOrder = "order"
-	OrmTagForDo        = "do"
+	OrmTagForStruct       = "orm"
+	OrmTagForTable        = "table"
+	OrmTagForWith         = "with"
+	OrmTagForWithWhere    = "where"
+	OrmTagForWithOrder    = "order"
+	OrmTagForWithUnscoped = "unscoped"
+	OrmTagForDo           = "do"
 )
 
 var (
@@ -928,4 +930,42 @@ func FormatSqlWithArgs(sql string, args []interface{}) string {
 			return s
 		})
 	return newQuery
+}
+
+// FormatMultiLineSqlToSingle formats sql template string into one line.
+func FormatMultiLineSqlToSingle(sql string) (string, error) {
+	var err error
+	// format sql template string.
+	sql, err = gregex.ReplaceString(`[\n\r\s]+`, " ", gstr.Trim(sql))
+	if err != nil {
+		return "", err
+	}
+	sql, err = gregex.ReplaceString(`\s{2,}`, " ", gstr.Trim(sql))
+	if err != nil {
+		return "", err
+	}
+	return sql, nil
+}
+
+func genTableFieldsCacheKey(group, schema, table string) string {
+	return fmt.Sprintf(
+		`%s%s@%s#%s`,
+		cachePrefixTableFields,
+		group,
+		schema,
+		table,
+	)
+}
+
+func genSelectCacheKey(table, group, schema, name, sql string, args ...interface{}) string {
+	if name == "" {
+		name = fmt.Sprintf(
+			`%s@%s#%s:%d`,
+			table,
+			group,
+			schema,
+			ghash.BKDR64([]byte(sql+", @PARAMS:"+gconv.String(args))),
+		)
+	}
+	return fmt.Sprintf(`%s%s`, cachePrefixSelectCache, name)
 }

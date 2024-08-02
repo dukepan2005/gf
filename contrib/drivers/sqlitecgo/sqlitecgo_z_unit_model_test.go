@@ -364,13 +364,17 @@ func Test_Model_Save(t *testing.T) {
 	table := createTable()
 	defer dropTable(table)
 	gtest.C(t, func(t *gtest.T) {
-		_, err := db.Model(table).Data(g.Map{
+		var (
+			err error
+		)
+
+		_, err = db.Model(table).Data(g.Map{
 			"id":          1,
-			"passport":    "t111",
-			"password":    "25d55ad283aa400af464c76d713c07ad",
-			"nickname":    "T111",
+			"passport":    "CN",
+			"password":    "12345678",
+			"nickname":    "oldme",
 			"create_time": CreateTime,
-		}).Save()
+		}).OnConflict("id").Save()
 		t.Assert(err, ErrorSave)
 	})
 }

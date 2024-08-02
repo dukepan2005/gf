@@ -58,6 +58,10 @@ CONFIGURATION SUPPORT
 			  import: github.com/shopspring/decimal
 			numeric:
 			  type: string
+		  fieldMapping:
+			table_name.field_name:
+			  type:   decimal.Decimal
+			  import: github.com/shopspring/decimal
 `
 	CGenDaoBriefPath              = `directory path for generated files`
 	CGenDaoBriefLink              = `database configuration, the same as the ORM configuration of GoFrame`
@@ -81,6 +85,7 @@ CONFIGURATION SUPPORT
 	CGenDaoBriefNoModelComment    = `no model comment will be added for each field`
 	CGenDaoBriefClear             = `delete all generated go files that do not exist in database`
 	CGenDaoBriefTypeMapping       = `custom local type mapping for generated struct attributes relevant to fields of table`
+	CGenDaoBriefFieldMapping      = `custom local type mapping for generated struct attributes relevant to specific fields of table`
 	CGenDaoBriefGroup             = `
 specifying the configuration group name of database for generated ORM instance,
 it's not necessary and the default value is "default"
@@ -113,6 +118,7 @@ generated json tag case for model struct, cases are as follows:
 	tplVarGroupName               = `{TplGroupName}`
 	tplVarDatetimeStr             = `{TplDatetimeStr}`
 	tplVarCreatedAtDatetimeStr    = `{TplCreatedAtDatetimeStr}`
+	tplVarPackageName             = `{TplPackageName}`
 )
 
 var (
@@ -162,6 +168,7 @@ func init() {
 		`CGenDaoBriefNoModelComment`:     CGenDaoBriefNoModelComment,
 		`CGenDaoBriefClear`:              CGenDaoBriefClear,
 		`CGenDaoBriefTypeMapping`:        CGenDaoBriefTypeMapping,
+		`CGenDaoBriefFieldMapping`:       CGenDaoBriefFieldMapping,
 		`CGenDaoBriefGroup`:              CGenDaoBriefGroup,
 		`CGenDaoBriefJsonCase`:           CGenDaoBriefJsonCase,
 		`CGenDaoBriefTplDaoIndexPath`:    CGenDaoBriefTplDaoIndexPath,
@@ -201,8 +208,9 @@ type (
 		NoModelComment     bool   `name:"noModelComment"      short:"m"  brief:"{CGenDaoBriefNoModelComment}" orphan:"true"`
 		Clear              bool   `name:"clear"               short:"a"  brief:"{CGenDaoBriefClear}" orphan:"true"`
 
-		TypeMapping        map[DBFieldTypeName]CustomAttributeType `name:"typeMapping" short:"y" brief:"{CGenDaoBriefTypeMapping}" orphan:"true"`
-		generatedFilePaths *CGenDaoInternalGeneratedFilePaths
+		TypeMapping  map[DBFieldTypeName]CustomAttributeType  `name:"typeMapping" short:"y" brief:"{CGenDaoBriefTypeMapping}" orphan:"true"`
+		FieldMapping map[DBTableFieldName]CustomAttributeType `name:"fieldMapping" short:"fm"  brief:"{CGenDaoBriefFieldMapping}" orphan:"true"`
+		genItems     *CGenDaoInternalGenItems
 	}
 	CGenDaoOutput struct{}
 
@@ -212,14 +220,7 @@ type (
 		TableNames    []string
 		NewTableNames []string
 	}
-
-	CGenDaoInternalGeneratedFilePaths struct {
-		DaoFilePaths         []string
-		DaoInternalFilePaths []string
-		DoFilePaths          []string
-		EntityFilePaths      []string
-	}
-
+	DBTableFieldName    = string
 	DBFieldTypeName     = string
 	CustomAttributeType struct {
 		Type   string `brief:"custom attribute type name"`
@@ -228,13 +229,10 @@ type (
 )
 
 func (c CGenDao) Dao(ctx context.Context, in CGenDaoInput) (out *CGenDaoOutput, err error) {
-	in.generatedFilePaths = &CGenDaoInternalGeneratedFilePaths{
-		DaoFilePaths:         make([]string, 0),
-		DaoInternalFilePaths: make([]string, 0),
-		DoFilePaths:          make([]string, 0),
-		EntityFilePaths:      make([]string, 0),
-	}
-	if g.Cfg().Available(ctx) {
+	in.genItems = newCGenDaoInternalGenItems()
+	if in.Link != "" {
+		doGenDaoForArray(ctx, -1, in)
+	} else if g.Cfg().Available(ctx) {
 		v := g.Cfg().MustGet(ctx, CGenDaoConfig)
 		if v.IsSlice() {
 			for i := 0; i < len(v.Interfaces()); i++ {
@@ -246,6 +244,7 @@ func (c CGenDao) Dao(ctx context.Context, in CGenDaoInput) (out *CGenDaoOutput, 
 	} else {
 		doGenDaoForArray(ctx, -1, in)
 	}
+	doClear(in.genItems)
 	mlog.Print("done!")
 	return
 }
@@ -326,6 +325,8 @@ func doGenDaoForArray(ctx context.Context, index int, in CGenDaoInput) {
 		newTableNames[i] = newTableName
 	}
 
+	in.genItems.Scale()
+
 	// Dao: index and internal.
 	generateDao(ctx, CGenDaoInternalInput{
 		CGenDaoInput:  in,
@@ -348,9 +349,7 @@ func doGenDaoForArray(ctx context.Context, index int, in CGenDaoInput) {
 		NewTableNames: newTableNames,
 	})
 
-	if in.Clear {
-		doClear(ctx, in)
-	}
+	in.genItems.SetClear(in.Clear)
 }
 
 func getImportPartContent(ctx context.Context, source string, isDo bool, appendImports []string) string {
@@ -372,7 +371,7 @@ func getImportPartContent(ctx context.Context, source string, isDo bool, appendI
 	}
 
 	// Check and update imports in go.mod
-	if appendImports != nil && len(appendImports) > 0 {
+	if len(appendImports) > 0 {
 		goModPath := utils.GetModPath()
 		if goModPath == "" {
 			mlog.Fatal("go.mod not found in current project")
@@ -390,8 +389,9 @@ func getImportPartContent(ctx context.Context, source string, isDo bool, appendI
 				}
 			}
 			if !found {
-				err = gproc.ShellRun(ctx, `go get `+appendImport)
-				mlog.Fatalf(`%+v`, err)
+				if err = gproc.ShellRun(ctx, `go get `+appendImport); err != nil {
+					mlog.Fatalf(`%+v`, err)
+				}
 			}
 			packageImportsArray.Append(fmt.Sprintf(`"%s"`, appendImport))
 		}

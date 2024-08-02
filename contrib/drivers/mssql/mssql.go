@@ -7,16 +7,14 @@
 // Package mssql implements gdb.Driver, which supports operations for database MSSql.
 //
 // Note:
-// 1. It does not support Save/Replace features.
+// 1. It does not support Replace features.
 // 2. It does not support LastInsertId.
 package mssql
 
 import (
-	_ "github.com/denisenkom/go-mssqldb"
+	_ "github.com/microsoft/go-mssqldb"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/text/gregex"
-	"github.com/gogf/gf/v2/text/gstr"
 )
 
 // Driver is the driver for SQL server database.
@@ -32,21 +30,6 @@ func init() {
 	if err := gdb.Register(`mssql`, New()); err != nil {
 		panic(err)
 	}
-}
-
-// formatSqlTmp formats sql template string into one line.
-func formatSqlTmp(sqlTmp string) string {
-	var err error
-	// format sql template string.
-	sqlTmp, err = gregex.ReplaceString(`[\n\r\s]+`, " ", gstr.Trim(sqlTmp))
-	if err != nil {
-		panic(err)
-	}
-	sqlTmp, err = gregex.ReplaceString(`\s{2,}`, " ", gstr.Trim(sqlTmp))
-	if err != nil {
-		panic(err)
-	}
-	return sqlTmp
 }
 
 // New create and returns a driver that implements gdb.Driver, which supports operations for Mssql.

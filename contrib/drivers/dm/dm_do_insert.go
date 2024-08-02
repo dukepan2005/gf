@@ -10,198 +10,142 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
 	"strings"
 
+	"github.com/gogf/gf/v2/container/gset"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gstr"
-	"github.com/gogf/gf/v2/util/gconv"
 )
 
-// DoInsert inserts or updates data forF given table.
+// DoInsert inserts or updates data for given table.
 func (d *Driver) DoInsert(
 	ctx context.Context, link gdb.Link, table string, list gdb.List, option gdb.DoInsertOption,
 ) (result sql.Result, err error) {
 	switch option.InsertOption {
+	case gdb.InsertOptionSave:
+		return d.doSave(ctx, link, table, list, option)
+
 	case gdb.InsertOptionReplace:
 		// TODO:: Should be Supported
 		return nil, gerror.NewCode(
 			gcode.CodeNotSupported, `Replace operation is not supported by dm driver`,
 		)
-
-	case gdb.InsertOptionSave:
-		// This syntax currently only supports design tables whose primary key is ID.
-		listLength := len(list)
-		if listLength == 0 {
-			return nil, gerror.NewCode(
-				gcode.CodeInvalidRequest, `Save operation list is empty by dm driver`,
-			)
-		}
-		var (
-			keysSort     []string
-			charL, charR = d.GetChars()
-		)
-		// Column names need to be aligned in the syntax
-		for k := range list[0] {
-			keysSort = append(keysSort, k)
-		}
-		var char = struct {
-			charL        string
-			charR        string
-			valueCharL   string
-			valueCharR   string
-			duplicateKey string
-			keys         []string
-		}{
-			charL:      charL,
-			charR:      charR,
-			valueCharL: "'",
-			valueCharR: "'",
-			// TODO:: Need to dynamically set the primary key of the table
-			duplicateKey: "ID",
-			keys:         keysSort,
-		}
-
-		// insertKeys:   Handle valid keys that need to be inserted and updated
-		// insertValues: Handle values that need to be inserted
-		// updateValues: Handle values that need to be updated
-		// queryValues:  Handle only one insert with column name
-		insertKeys, insertValues, updateValues, queryValues := parseValue(list[0], char)
-		// unionValues: Handling values that need to be inserted and updated
-		unionValues := parseUnion(list[1:], char)
-
-		batchResult := new(gdb.SqlResult)
-		// parseSql():
-		// MERGE INTO {{table}} T1
-		// USING ( SELECT {{queryValues}} FROM DUAL
-		// {{unionValues}} ) T2
-		// ON (T1.{{duplicateKey}} = T2.{{duplicateKey}})
-		// WHEN NOT MATCHED THEN
-		// INSERT {{insertKeys}} VALUES {{insertValues}}
-		// WHEN MATCHED THEN
-		// UPDATE SET {{updateValues}}
-		sqlStr := parseSql(
-			insertKeys, insertValues, updateValues, queryValues, unionValues, table, char.duplicateKey,
-		)
-		r, err := d.DoExec(ctx, link, sqlStr)
-		if err != nil {
-			return r, err
-		}
-		if n, err := r.RowsAffected(); err != nil {
-			return r, err
-		} else {
-			batchResult.Result = r
-			batchResult.Affected += n
-		}
-		return batchResult, nil
 	}
+
 	return d.Core.DoInsert(ctx, link, table, list, option)
 }
 
-func parseValue(listOne gdb.Map, char struct {
-	charL        string
-	charR        string
-	valueCharL   string
-	valueCharR   string
-	duplicateKey string
-	keys         []string
-}) (insertKeys []string, insertValues []string, updateValues []string, queryValues []string) {
-	for _, column := range char.keys {
-		if listOne[column] == nil {
-			// remove unassigned struct object
-			continue
-		}
-		insertKeys = append(insertKeys, char.charL+column+char.charR)
-		insertValues = append(insertValues, "T2."+char.charL+column+char.charR)
-		if column != char.duplicateKey {
+// doSave support upsert for dm
+func (d *Driver) doSave(ctx context.Context,
+	link gdb.Link, table string, list gdb.List, option gdb.DoInsertOption,
+) (result sql.Result, err error) {
+	if len(option.OnConflict) == 0 {
+		return nil, gerror.NewCode(
+			gcode.CodeMissingParameter, `Please specify conflict columns`,
+		)
+	}
+
+	if len(list) == 0 {
+		return nil, gerror.NewCode(
+			gcode.CodeInvalidRequest, `Save operation list is empty by oracle driver`,
+		)
+	}
+
+	var (
+		one          = list[0]
+		oneLen       = len(one)
+		charL, charR = d.GetChars()
+
+		conflictKeys   = option.OnConflict
+		conflictKeySet = gset.New(false)
+
+		// queryHolders:	Handle data with Holder that need to be upsert
+		// queryValues:		Handle data that need to be upsert
+		// insertKeys:		Handle valid keys that need to be inserted
+		// insertValues:	Handle values that need to be inserted
+		// updateValues:	Handle values that need to be updated
+		queryHolders = make([]string, oneLen)
+		queryValues  = make([]interface{}, oneLen)
+		insertKeys   = make([]string, oneLen)
+		insertValues = make([]string, oneLen)
+		updateValues []string
+	)
+
+	// conflictKeys slice type conv to set type
+	for _, conflictKey := range conflictKeys {
+		conflictKeySet.Add(gstr.ToUpper(conflictKey))
+	}
+
+	index := 0
+	for key, value := range one {
+		keyWithChar := charL + key + charR
+		queryHolders[index] = fmt.Sprintf("? AS %s", keyWithChar)
+		queryValues[index] = value
+		insertKeys[index] = keyWithChar
+		insertValues[index] = fmt.Sprintf("T2.%s", keyWithChar)
+
+		// filter conflict keys in updateValues.
+		// And the key is not a soft created field.
+		if !(conflictKeySet.Contains(key) || d.Core.IsSoftCreatedFieldName(key)) {
 			updateValues = append(
 				updateValues,
-				fmt.Sprintf(`T1.%s = T2.%s`, char.charL+column+char.charR, char.charL+column+char.charR),
+				fmt.Sprintf(`T1.%s = T2.%s`, keyWithChar, keyWithChar),
 			)
 		}
-
-		saveValue := gconv.String(listOne[column])
-		queryValues = append(
-			queryValues,
-			fmt.Sprintf(
-				char.valueCharL+"%s"+char.valueCharR+" AS "+char.charL+"%s"+char.charR,
-				saveValue, column,
-			),
-		)
+		index++
 	}
-	return
+
+	batchResult := new(gdb.SqlResult)
+	sqlStr := parseSqlForUpsert(table, queryHolders, insertKeys, insertValues, updateValues, conflictKeys)
+	r, err := d.DoExec(ctx, link, sqlStr, queryValues...)
+	if err != nil {
+		return r, err
+	}
+	if n, err := r.RowsAffected(); err != nil {
+		return r, err
+	} else {
+		batchResult.Result = r
+		batchResult.Affected += n
+	}
+	return batchResult, nil
 }
 
-func parseUnion(list gdb.List, char struct {
-	charL        string
-	charR        string
-	valueCharL   string
-	valueCharR   string
-	duplicateKey string
-	keys         []string
-}) (unionValues []string) {
-	for _, mapper := range list {
-		var saveValue []string
-		for _, column := range char.keys {
-			if mapper[column] == nil {
-				continue
-			}
-			// va := reflect.ValueOf(mapper[column])
-			// ty := reflect.TypeOf(mapper[column])
-			// switch ty.Kind() {
-			// case reflect.String:
-			// 	saveValue = append(saveValue, char.valueCharL+va.String()+char.valueCharR)
-
-			// case reflect.Int:
-			// 	saveValue = append(saveValue, strconv.FormatInt(va.Int(), 10))
-
-			// case reflect.Int64:
-			// 	saveValue = append(saveValue, strconv.FormatInt(va.Int(), 10))
-
-			// default:
-			// 	// The fish has no chance getting here.
-			// 	// Nothing to do.
-			// }
-			saveValue = append(saveValue,
-				fmt.Sprintf(
-					char.valueCharL+"%s"+char.valueCharR,
-					gconv.String(mapper[column]),
-				))
-		}
-		unionValues = append(
-			unionValues,
-			fmt.Sprintf(`UNION ALL SELECT %s FROM DUAL`, strings.Join(saveValue, ",")),
-		)
-	}
-	return
-}
-
-func parseSql(
-	insertKeys, insertValues, updateValues, queryValues, unionValues []string, table, duplicateKey string,
+// parseSqlForUpsert
+// MERGE INTO {{table}} T1
+// USING ( SELECT {{queryHolders}} FROM DUAL T2
+// ON (T1.{{duplicateKey}} = T2.{{duplicateKey}} AND ...)
+// WHEN NOT MATCHED THEN
+// INSERT {{insertKeys}} VALUES {{insertValues}}
+// WHEN MATCHED THEN
+// UPDATE SET {{updateValues}}
+func parseSqlForUpsert(table string,
+	queryHolders, insertKeys, insertValues, updateValues, duplicateKey []string,
 ) (sqlStr string) {
 	var (
-		queryValueStr  = strings.Join(queryValues, ",")
-		unionValueStr  = strings.Join(unionValues, " ")
-		insertKeyStr   = strings.Join(insertKeys, ",")
-		insertValueStr = strings.Join(insertValues, ",")
-		updateValueStr = strings.Join(updateValues, ",")
-		pattern        = gstr.Trim(`
-MERGE INTO %s T1 USING (SELECT %s FROM DUAL %s) T2 ON %s 
-WHEN NOT MATCHED 
-THEN 
-INSERT(%s) VALUES (%s) 
-WHEN MATCHED 
-THEN 
-UPDATE SET %s; 
-COMMIT;
-`)
+		queryHolderStr  = strings.Join(queryHolders, ",")
+		insertKeyStr    = strings.Join(insertKeys, ",")
+		insertValueStr  = strings.Join(insertValues, ",")
+		updateValueStr  = strings.Join(updateValues, ",")
+		duplicateKeyStr string
+		pattern         = gstr.Trim(`MERGE INTO %s T1 USING (SELECT %s FROM DUAL) T2 ON (%s) WHEN NOT MATCHED THEN INSERT(%s) VALUES (%s) WHEN MATCHED THEN UPDATE SET %s;`)
 	)
-	return fmt.Sprintf(
-		pattern,
-		table, queryValueStr, unionValueStr,
-		fmt.Sprintf("(T1.%s = T2.%s)", duplicateKey, duplicateKey),
-		insertKeyStr, insertValueStr, updateValueStr,
+
+	for index, keys := range duplicateKey {
+		if index != 0 {
+			duplicateKeyStr += " AND "
+		}
+		duplicateTmp := fmt.Sprintf("T1.%s = T2.%s", keys, keys)
+		duplicateKeyStr += duplicateTmp
+	}
+
+	return fmt.Sprintf(pattern,
+		table,
+		queryHolderStr,
+		duplicateKeyStr,
+		insertKeyStr,
+		insertValueStr,
+		updateValueStr,
 	)
 }

@@ -26,15 +26,15 @@ type JobFunc = gtimer.JobFunc
 
 // Entry is timing task entry.
 type Entry struct {
-	cron       *Cron         // Cron object belonged to.
-	timerEntry *gtimer.Entry // Associated timer Entry.
-	schedule   *cronSchedule // Timed schedule object.
-	jobName    string        // Callback function name(address info).
-	times      *gtype.Int    // Running times limit.
-	infinite   *gtype.Bool   // No times limit.
-	Name       string        // Entry name.
-	Job        JobFunc       `json:"-"` // Callback function.
-	Time       time.Time     // Registered time.
+	cron         *Cron         // Cron object belonged to.
+	timerEntry   *gtimer.Entry // Associated timer Entry.
+	schedule     *cronSchedule // Timed schedule object.
+	jobName      string        // Callback function name(address info).
+	times        *gtype.Int    // Running times limit.
+	infinite     *gtype.Bool   // No times limit.
+	Name         string        // Entry name.
+	RegisterTime time.Time     // Registered time.
+	Job          JobFunc       `json:"-"` // Callback function.
 }
 
 type doAddEntryInput struct {
@@ -64,13 +64,13 @@ func (c *Cron) doAddEntry(in doAddEntryInput) (*Entry, error) {
 	}
 	// No limit for `times`, for timer checking scheduling every second.
 	entry := &Entry{
-		cron:     c,
-		schedule: schedule,
-		jobName:  runtime.FuncForPC(reflect.ValueOf(in.Job).Pointer()).Name(),
-		times:    gtype.NewInt(in.Times),
-		infinite: gtype.NewBool(in.Infinite),
-		Job:      in.Job,
-		Time:     time.Now(),
+		cron:         c,
+		schedule:     schedule,
+		jobName:      runtime.FuncForPC(reflect.ValueOf(in.Job).Pointer()).Name(),
+		times:        gtype.NewInt(in.Times),
+		infinite:     gtype.NewBool(in.Infinite),
+		RegisterTime: time.Now(),
+		Job:          in.Job,
 	}
 	if in.Name != "" {
 		entry.Name = in.Name
@@ -152,7 +152,9 @@ func (e *Entry) checkAndRun(ctx context.Context) {
 		e.Close()
 
 	case StatusReady, StatusRunning:
+		e.cron.jobWaiter.Add(1)
 		defer func() {
+			e.cron.jobWaiter.Done()
 			if exception := recover(); exception != nil {
 				// Exception caught, it logs the error content to logger in default behavior.
 				e.logErrorf(ctx,

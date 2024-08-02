@@ -1,3 +1,9 @@
+// Copyright GoFrame gf Author(https://goframe.org). All Rights Reserved.
+//
+// This Source Code Form is subject to the terms of the MIT License.
+// If a copy of the MIT was not distributed with this file,
+// You can obtain one at https://github.com/gogf/gf.
+
 package main
 
 import (
@@ -36,7 +42,6 @@ func main() {
 
 	// Start metric http server.
 	s := g.Server()
-	s.SetPort(8000)
 	// Fake metric values.
 	// http://127.0.0.1:8000/
 	s.BindHandler("/", func(r *ghttp.Request) {
@@ -47,5 +52,6 @@ func main() {
 	// Export metric values.
 	// You can view http://127.0.0.1:8000/metrics to see all metric values.
 	s.BindHandler("/metrics", ghttp.WrapH(promhttp.Handler()))
+	s.SetPort(8000)
 	s.Run()
 }

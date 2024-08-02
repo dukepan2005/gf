@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -18,7 +19,7 @@ import (
 	"github.com/gogf/gf/v2/test/gtest"
 )
 
-func TestTables(t *testing.T) {
+func Test_Tables(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		tables := []string{"t_user1", "pop", "haha"}
 
@@ -59,7 +60,7 @@ func TestTables(t *testing.T) {
 	})
 }
 
-func TestTableFields(t *testing.T) {
+func Test_Table_Fields(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		createTable("t_user")
 		defer dropTable("t_user")
@@ -106,7 +107,7 @@ func TestTableFields(t *testing.T) {
 	})
 }
 
-func TestDoInsert(t *testing.T) {
+func Test_Do_Insert(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		createTable("t_user")
 		defer dropTable("t_user")
@@ -218,7 +219,7 @@ func Test_DB_Insert(t *testing.T) {
 			Salary     float64 `gconv:"SALARY"`
 			CreateTime string  `json:"CREATE_TIME"`
 		}
-		timeStr := gtime.Now().String()
+		timeStr := gtime.New("2024-10-01 12:01:01").String()
 		result, err = db.Insert(ctx, table, User{
 			Id:         3,
 			Passport:   "user_3",
@@ -242,7 +243,7 @@ func Test_DB_Insert(t *testing.T) {
 		t.Assert(one["CREATE_TIME"].GTime().String(), timeStr)
 
 		// *struct
-		timeStr = gtime.Now().String()
+		timeStr = gtime.New("2024-10-01 12:01:01").String()
 		result, err = db.Insert(ctx, table, &User{
 			Id:         4,
 			Passport:   "t4",
@@ -265,7 +266,7 @@ func Test_DB_Insert(t *testing.T) {
 		t.Assert(one["CREATE_TIME"].GTime().String(), timeStr)
 
 		// batch with Insert
-		timeStr = gtime.Now().String()
+		timeStr = gtime.New("2024-10-01 12:01:01").String()
 		r, err := db.Insert(ctx, table, g.Slice{
 			g.Map{
 				"ID":          200,
@@ -690,5 +691,24 @@ func Test_Empty_Slice_Argument(t *testing.T) {
 		result, err := db.GetAll(ctx, fmt.Sprintf(`select * from %s where id in(?)`, table), g.Slice{})
 		t.AssertNil(err)
 		t.Assert(len(result), 0)
+	})
+}
+
+// fix #3226
+func Test_Extra(t *testing.T) {
+	gtest.C(t, func(t *gtest.T) {
+		nodeLink := gdb.ConfigNode{
+			Type: TestDbType,
+			Name: TestDbName,
+			Link: fmt.Sprintf("%s:%s:%s@tcp(%s:%s)/%s?lob fetch=post&SSL VERIFY=false",
+				TestDbType, TestDbUser, TestDbPass, TestDbIP, TestDbPort, TestDbName,
+			),
+		}
+		if r, err := gdb.New(nodeLink); err != nil {
+			gtest.Fatal(err)
+		} else {
+			err1 := r.PingMaster()
+			t.Assert(err1, nil)
+		}
 	})
 }

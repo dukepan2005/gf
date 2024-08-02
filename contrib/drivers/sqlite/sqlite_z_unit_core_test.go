@@ -140,7 +140,7 @@ func Test_DB_Insert(t *testing.T) {
 			Nickname   string `gconv:"nickname"`
 			CreateTime string `json:"create_time"`
 		}
-		timeStr := gtime.Now().String()
+		timeStr := gtime.New("2024-10-01 12:01:01").String()
 		result, err = db.Insert(ctx, table, User{
 			Id:         3,
 			Passport:   "user_3",
@@ -162,7 +162,7 @@ func Test_DB_Insert(t *testing.T) {
 		t.Assert(one["create_time"].GTime().String(), timeStr)
 
 		// *struct
-		timeStr = gtime.Now().String()
+		timeStr = gtime.New("2024-10-01 12:01:01").String()
 		result, err = db.Insert(ctx, table, &User{
 			Id:         4,
 			Passport:   "t4",
@@ -183,7 +183,7 @@ func Test_DB_Insert(t *testing.T) {
 		t.Assert(one["create_time"].GTime().String(), timeStr)
 
 		// batch with Insert
-		timeStr = gtime.Now().String()
+		timeStr = gtime.New("2024-10-01 12:01:01").String()
 		r, err := db.Insert(ctx, table, g.Slice{
 			g.Map{
 				"id":          200,
@@ -425,19 +425,22 @@ func Test_DB_BatchInsert_Struct(t *testing.T) {
 }
 
 func Test_DB_Save(t *testing.T) {
-	table := createInitTable()
+	table := createTable()
 	defer dropTable(table)
-
 	gtest.C(t, func(t *gtest.T) {
-		timeStr := gtime.Now().String()
-		_, err := db.Save(ctx, table, g.Map{
-			"id":          1,
-			"passport":    "t1",
-			"password":    "25d55ad283aa400af464c76d713c07ad",
-			"nickname":    "T11",
-			"create_time": timeStr,
-		})
-		t.Assert(err, ErrorSave)
+		createTable("t_user")
+		defer dropTable("t_user")
+
+		i := 10
+		data := g.Map{
+			"id":          i,
+			"passport":    fmt.Sprintf(`t%d`, i),
+			"password":    fmt.Sprintf(`p%d`, i),
+			"nickname":    fmt.Sprintf(`T%d`, i),
+			"create_time": gtime.Now().String(),
+		}
+		_, err := db.Save(ctx, "t_user", data, 10)
+		gtest.AssertNE(err, nil)
 	})
 }
 
@@ -446,7 +449,7 @@ func Test_DB_Replace(t *testing.T) {
 	defer dropTable(table)
 
 	gtest.C(t, func(t *gtest.T) {
-		timeStr := gtime.Now().String()
+		timeStr := gtime.New("2024-10-01 12:01:01").String()
 		_, err := db.Replace(ctx, table, g.Map{
 			"id":          1,
 			"passport":    "t1",

@@ -30,6 +30,7 @@ func generateDao(ctx context.Context, in CGenDaoInternalInput) {
 		dirPathDao         = gfile.Join(in.Path, in.DaoPath)
 		dirPathDaoInternal = gfile.Join(dirPathDao, "internal")
 	)
+	in.genItems.AppendDirPath(dirPathDao)
 	for i := 0; i < len(in.TableNames); i++ {
 		generateDaoSingle(ctx, generateDaoSingleInput{
 			CGenDaoInternalInput: in,
@@ -57,8 +58,8 @@ func generateDaoSingle(ctx context.Context, in generateDaoSingleInput) {
 		mlog.Fatalf(`fetching tables fields failed for table "%s": %+v`, in.TableName, err)
 	}
 	var (
-		tableNameCamelCase      = gstr.CaseCamel(in.NewTableName)
-		tableNameCamelLowerCase = gstr.CaseCamelLower(in.NewTableName)
+		tableNameCamelCase      = gstr.CaseCamel(strings.ToLower(in.NewTableName))
+		tableNameCamelLowerCase = gstr.CaseCamelLower(strings.ToLower(in.NewTableName))
 		tableNameSnakeCase      = gstr.CaseSnake(in.NewTableName)
 		importPrefix            = in.ImportPrefix
 	)
@@ -106,10 +107,7 @@ type generateDaoIndexInput struct {
 func generateDaoIndex(in generateDaoIndexInput) {
 	path := filepath.FromSlash(gfile.Join(in.DirPathDao, in.FileName+".go"))
 	// It should add path to result slice whenever it would generate the path file or not.
-	in.generatedFilePaths.DaoFilePaths = append(
-		in.generatedFilePaths.DaoFilePaths,
-		path,
-	)
+	in.genItems.AppendGeneratedFilePath(path)
 	if in.OverwriteDao || !gfile.Exists(path) {
 		indexContent := gstr.ReplaceByMap(
 			getTemplateFromPathOrDefault(in.TplDaoIndexPath, consts.TemplateGenDaoIndexContent),
@@ -118,6 +116,7 @@ func generateDaoIndex(in generateDaoIndexInput) {
 				tplVarTableName:               in.TableName,
 				tplVarTableNameCamelCase:      in.TableNameCamelCase,
 				tplVarTableNameCamelLowerCase: in.TableNameCamelLowerCase,
+				tplVarPackageName:             filepath.Base(in.DaoPath),
 			})
 		indexContent = replaceDefaultVar(in.CGenDaoInternalInput, indexContent)
 		if err := gfile.PutContents(path, strings.TrimSpace(indexContent)); err != nil {
@@ -153,10 +152,7 @@ func generateDaoInternal(in generateDaoInternalInput) {
 			tplVarColumnNames:             gstr.Trim(generateColumnNamesForDao(in.FieldMap, removeFieldPrefixArray)),
 		})
 	modelContent = replaceDefaultVar(in.CGenDaoInternalInput, modelContent)
-	in.generatedFilePaths.DaoInternalFilePaths = append(
-		in.generatedFilePaths.DaoInternalFilePaths,
-		path,
-	)
+	in.genItems.AppendGeneratedFilePath(path)
 	if err := gfile.PutContents(path, strings.TrimSpace(modelContent)); err != nil {
 		mlog.Fatalf("writing content to '%s' failed: %v", path, err)
 	} else {
@@ -183,7 +179,7 @@ func generateColumnNamesForDao(fieldMap map[string]*gdb.TableField, removeFieldP
 		}
 
 		array[index] = []string{
-			"            #" + gstr.CaseCamel(newFiledName) + ":",
+			"            #" + gstr.CaseCamel(strings.ToLower(newFiledName)) + ":",
 			fmt.Sprintf(` #"%s",`, field.Name),
 		}
 	}
@@ -223,7 +219,7 @@ func generateColumnDefinitionForDao(fieldMap map[string]*gdb.TableField, removeF
 			newFiledName = gstr.TrimLeftStr(newFiledName, v, 1)
 		}
 		array[index] = []string{
-			"    #" + gstr.CaseCamel(newFiledName),
+			"    #" + gstr.CaseCamel(strings.ToLower(newFiledName)),
 			" # " + "string",
 			" #" + fmt.Sprintf(`// %s`, comment),
 		}
