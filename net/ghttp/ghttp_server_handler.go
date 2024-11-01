@@ -34,10 +34,6 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
-const (
-	tracingCommonKeyOperationName string = "op"
-)
-
 // ServeHTTP is the default handler for http request.
 // It should not create new goroutine handling the request as
 // it's called by am already created new goroutine from http.Server.
@@ -64,7 +60,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	r = r.WithContext(ctx)
 	span.SetAttributes(gtrace.CommonLabels()...)
-	span.SetAttributes(attribute.String(tracingCommonKeyOperationName, "http.server"))
 	span.AddEvent(tracingEventHttpRequest, trace.WithAttributes(
 		attribute.String(tracingEventHttpRequestUrl, r.URL.String()),
 		attribute.String(tracingEventHttpRequestHeaders, gconv.String(httputil.HeaderToMap(r.Header))),
