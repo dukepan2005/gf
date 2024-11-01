@@ -7,20 +7,35 @@
 package ghttp
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"sort"
 	"strings"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/gogf/gf/v2"
 	"github.com/gogf/gf/v2/encoding/ghtml"
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/internal/httputil"
 	"github.com/gogf/gf/v2/internal/intlog"
+	"github.com/gogf/gf/v2/net/gtrace"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/gres"
 	"github.com/gogf/gf/v2/os/gspath"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/text/gstr"
+	"github.com/gogf/gf/v2/util/gconv"
+)
+
+const (
+	tracingCommonKeyOperationName string = "op"
 )
 
 // ServeHTTP is the default handler for http request.
@@ -29,6 +44,33 @@ import (
 //
 // This function also makes serve implementing the interface of http.Handler.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var (
+		span trace.Span
+		ctx  = r.Context()
+		tr   = otel.GetTracerProvider().Tracer(
+			instrumentName,
+			trace.WithInstrumentationVersion(gf.VERSION),
+		)
+	)
+	ctx, span = tr.Start(
+		otel.GetTextMapPropagator().Extract(
+			ctx,
+			propagation.HeaderCarrier(r.Header),
+		),
+		fmt.Sprintf("%s %s", r.Method, r.URL.Path),
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
+	defer span.End()
+
+	r = r.WithContext(ctx)
+	span.SetAttributes(gtrace.CommonLabels()...)
+	span.SetAttributes(attribute.String(tracingCommonKeyOperationName, "http.server"))
+	span.AddEvent(tracingEventHttpRequest, trace.WithAttributes(
+		attribute.String(tracingEventHttpRequestUrl, r.URL.String()),
+		attribute.String(tracingEventHttpRequestHeaders, gconv.String(httputil.HeaderToMap(r.Header))),
+		attribute.String(tracingEventHttpRequestBaggage, gtrace.GetBaggageMap(ctx).String()),
+	))
+
 	// Max body size limit.
 	if s.config.ClientMaxBodySize > 0 {
 		r.Body = http.MaxBytesReader(w, r.Body, s.config.ClientMaxBodySize)
@@ -37,6 +79,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(s.config.Rewrites) > 0 {
 		if rewrite, ok := s.config.Rewrites[r.URL.Path]; ok {
 			r.URL.Path = rewrite
+			span.SetName(fmt.Sprintf("%s %s", r.Method, r.URL.Path))
 		}
 	}
 
@@ -118,6 +161,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !request.IsExited() {
 		s.callHookHandler(HookAfterOutput, request)
 	}
+
+	// Error logging.
+	if err := request.GetError(); err != nil {
+		span.SetStatus(codes.Error, fmt.Sprintf(`%+v`, err))
+	}
+	span.AddEvent(tracingEventHttpResponse, trace.WithAttributes(
+		attribute.String(
+			tracingEventHttpResponseHeaders,
+			gconv.String(httputil.HeaderToMap(request.Response.Header())),
+		),
+	))
 }
 
 func (s *Server) handleResponse(request *Request, sessionId string) {
