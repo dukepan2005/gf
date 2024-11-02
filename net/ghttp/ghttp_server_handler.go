@@ -55,6 +55,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		),
 		fmt.Sprintf("%s %s", r.Method, r.URL.Path),
 		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithNewRoot(),
 	)
 	defer span.End()
 
@@ -74,7 +75,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(s.config.Rewrites) > 0 {
 		if rewrite, ok := s.config.Rewrites[r.URL.Path]; ok {
 			r.URL.Path = rewrite
-			span.SetName(fmt.Sprintf("%s %s", r.Method, r.URL.Path))
+			span.SetName(r.URL.Path)
 		}
 	}
 
