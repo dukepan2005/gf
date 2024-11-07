@@ -53,7 +53,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ctx,
 			propagation.HeaderCarrier(r.Header),
 		),
-		fmt.Sprintf("%s %s", r.Method, r.URL.Path),
+		r.URL.Path,
+		// fmt.Sprintf("%s %s", r.Method, r.URL.Path),
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithNewRoot(),
 	)
