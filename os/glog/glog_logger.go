@@ -404,7 +404,7 @@ func (l *Logger) GetStack(skip ...int) string {
 	}
 	// Whether filter framework error stacks.
 	if errors.IsStackModeBrief() {
-		filters = append(filters, consts.StackFilterKeyForGoFrame)
+		filters = append(filters, consts.StackFilterKeyForGoFrame, consts.StackFilterKeyForGoFrameFork)
 	}
 	return gdebug.StackWithFilters(filters, stackSkip)
 }
