@@ -388,12 +388,18 @@ func (s *Server) SetConfig(c ServerConfig) error {
 }
 
 // SetAddr sets the listening address for the server.
-// The address is like ':80', '0.0.0.0:80', '127.0.0.1:80', '180.18.99.10:80', etc.
+// The address is like:
+// SetAddr(":80")
+// SetAddr("0.0.0.0:80")
+// SetAddr("127.0.0.1:80")
+// SetAddr("180.18.99.10:80")
+// etc.
 func (s *Server) SetAddr(address string) {
 	s.config.Address = address
 }
 
 // SetPort sets the listening ports for the server.
+// It uses random port if the port is 0.
 // The listening ports can be multiple like: SetPort(80, 8080).
 func (s *Server) SetPort(port ...int) {
 	if len(port) > 0 {
@@ -413,6 +419,7 @@ func (s *Server) SetHTTPSAddr(address string) {
 }
 
 // SetHTTPSPort sets the HTTPS listening ports for the server.
+// It uses random port if the port is 0.
 // The listening ports can be multiple like: SetHTTPSPort(443, 500).
 func (s *Server) SetHTTPSPort(port ...int) {
 	if len(port) > 0 {

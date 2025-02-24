@@ -45,11 +45,11 @@ func (m *Model) Data(data ...interface{}) *Model {
 			model.data = s
 			model.extraArgs = data[1:]
 		} else {
-			m := make(map[string]interface{})
+			newData := make(map[string]interface{})
 			for i := 0; i < len(data); i += 2 {
-				m[gconv.String(data[i])] = data[i+1]
+				newData[gconv.String(data[i])] = data[i+1]
 			}
-			model.data = m
+			model.data = newData
 		}
 	} else if len(data) == 1 {
 		switch value := data[0].(type) {
@@ -335,6 +335,7 @@ func (m *Model) doInsertWithOption(ctx context.Context, insertOption InsertOptio
 		},
 		Model:  m,
 		Table:  m.tables,
+		Schema: m.schema,
 		Data:   list,
 		Option: doInsertOption,
 	}

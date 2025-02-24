@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/container/gtype"
+	"github.com/gogf/gf/v2/container/gvar"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/internal/json"
@@ -705,5 +706,102 @@ func doTestIssue3800(t *testing.T) {
 		t.Assert(*structL.UpdatedTick, structK.Master.UpdatedTick)
 		t.Assert(structL.StructA.Superior, structK.Master.Superior)
 		t.Assert(structL.StructA.UpdatedTick, structK.Master.UpdatedTick)
+	})
+}
+
+// https://github.com/gogf/gf/issues/3821
+func Test_Issue3821(t *testing.T) {
+	// Scan
+	gtest.C(t, func(t *gtest.T) {
+		var record = map[string]interface{}{
+			`user_id`:   1,
+			`user_name`: "teemo",
+		}
+
+		type DoubleInnerUser struct {
+			UserId int64 `orm:"user_id"`
+		}
+
+		type InnerUser struct {
+			UserId     int32   `orm:"user_id"`
+			UserIdBool bool    `orm:"user_id"`
+			Username   *string `orm:"user_name"`
+			Username2  *string `orm:"user_name"`
+			Username3  string  `orm:"username"`
+			*DoubleInnerUser
+		}
+
+		type User struct {
+			InnerUser
+			UserId     int        `orm:"user_id"`
+			UserIdBool gtype.Bool `orm:"user_id"`
+			Username   string     `orm:"user_name"`
+			Username2  string     `orm:"user_name"`
+			Username3  *string    `orm:"user_name"`
+			Username4  string     `orm:"username"` // empty string
+		}
+		var user = &User{}
+		err := gconv.StructTag(record, user, "orm")
+
+		t.AssertNil(err)
+		t.AssertEQ(user.UserId, 1)
+		t.AssertEQ(user.UserIdBool.Val(), true)
+		t.AssertEQ(user.Username, "teemo")
+		t.AssertEQ(user.Username2, "teemo")
+		t.AssertEQ(*user.Username3, "teemo")
+		t.AssertEQ(user.Username4, "")
+		t.AssertEQ(user.InnerUser.UserId, int32(1))
+		t.AssertEQ(user.InnerUser.UserIdBool, true)
+		t.AssertEQ(*user.InnerUser.Username, "teemo")
+		t.AssertEQ(*user.InnerUser.Username2, "teemo")
+		t.AssertEQ(user.InnerUser.Username3, "")
+		t.AssertEQ(user.DoubleInnerUser.UserId, int64(1))
+	})
+}
+
+// https://github.com/gogf/gf/issues/3868
+func Test_Issue3868(t *testing.T) {
+	gtest.C(t, func(t *gtest.T) {
+		type Config struct {
+			Enable   bool
+			Spec     string
+			PoolSize int
+		}
+		data := gjson.New(`[{"enable":false,"spec":"a"},{"enable":true,"poolSize":1}]`)
+		for i := 0; i < 1000; i++ {
+			var configs []*Config
+			err := gconv.Structs(data, &configs)
+			t.AssertNil(err)
+			t.Assert(len(configs), 2)
+			t.Assert(configs[0], &Config{
+				Enable: false,
+				Spec:   "a",
+			})
+			t.Assert(configs[1], &Config{
+				Enable:   true,
+				PoolSize: 1,
+			})
+		}
+	})
+}
+
+// https://github.com/gogf/gf/issues/3903
+func Test_Issue3903(t *testing.T) {
+	gtest.C(t, func(t *gtest.T) {
+		type TestA struct {
+			UserId int `json:"UserId"   orm:"user_id"   `
+		}
+		type TestB struct {
+			TestA
+			UserId int `json:"NewUserId"  description:""`
+		}
+		var input = map[string]interface{}{
+			"user_id": gvar.New(100, true),
+		}
+		var a TestB
+		err := gconv.StructTag(input, &a, "orm")
+		t.AssertNil(err)
+		t.Assert(a.TestA.UserId, 100)
+		t.Assert(a.UserId, 100)
 	})
 }
