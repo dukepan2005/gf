@@ -72,24 +72,29 @@ func (c *Core) GetCtx() context.Context {
 }
 
 // GetCtxTimeout returns the context and cancel function for specified timeout type.
-func (c *Core) GetCtxTimeout(ctx context.Context, timeoutType int) (context.Context, context.CancelFunc) {
+func (c *Core) GetCtxTimeout(ctx context.Context, timeoutType ctxTimeoutType) (context.Context, context.CancelFunc) {
 	if ctx == nil {
 		ctx = c.db.GetCtx()
 	} else {
 		ctx = context.WithValue(ctx, "WrappedByGetCtxTimeout", nil)
 	}
+	var config = c.db.GetConfig()
 	switch timeoutType {
 	case ctxTimeoutTypeExec:
 		if c.db.GetConfig().ExecTimeout > 0 {
-			return context.WithTimeout(ctx, c.db.GetConfig().ExecTimeout)
+			return context.WithTimeout(ctx, config.ExecTimeout)
 		}
 	case ctxTimeoutTypeQuery:
 		if c.db.GetConfig().QueryTimeout > 0 {
-			return context.WithTimeout(ctx, c.db.GetConfig().QueryTimeout)
+			return context.WithTimeout(ctx, config.QueryTimeout)
 		}
 	case ctxTimeoutTypePrepare:
 		if c.db.GetConfig().PrepareTimeout > 0 {
-			return context.WithTimeout(ctx, c.db.GetConfig().PrepareTimeout)
+			return context.WithTimeout(ctx, config.PrepareTimeout)
+		}
+	case ctxTimeoutTypeTrans:
+		if c.db.GetConfig().TranTimeout > 0 {
+			return context.WithTimeout(ctx, config.TranTimeout)
 		}
 	default:
 		panic(gerror.NewCodef(gcode.CodeInvalidParameter, "invalid context timeout type: %d", timeoutType))
@@ -278,7 +283,7 @@ func (c *Core) doUnion(ctx context.Context, unionType int, unions ...*Model) *Mo
 		unionTypeStr = "UNION"
 	}
 	for _, v := range unions {
-		sqlWithHolder, holderArgs := v.getFormattedSqlAndArgs(ctx, queryTypeNormal, false)
+		sqlWithHolder, holderArgs := v.getFormattedSqlAndArgs(ctx, SelectTypeDefault, false)
 		if composedSqlStr == "" {
 			composedSqlStr += fmt.Sprintf(`(%s)`, sqlWithHolder)
 		} else {
@@ -578,24 +583,8 @@ func (c *Core) DoUpdate(ctx context.Context, link Link, table string, data inter
 	switch kind {
 	case reflect.Map, reflect.Struct:
 		var (
-			fields         []string
-			dataMap        map[string]interface{}
-			counterHandler = func(column string, counter Counter) {
-				if counter.Value != 0 {
-					column = c.QuoteWord(column)
-					var (
-						columnRef = c.QuoteWord(counter.Field)
-						columnVal = counter.Value
-						operator  = "+"
-					)
-					if columnVal < 0 {
-						operator = "-"
-						columnVal = -columnVal
-					}
-					fields = append(fields, fmt.Sprintf("%s=%s%s?", column, columnRef, operator))
-					params = append(params, columnVal)
-				}
-			}
+			fields  []string
+			dataMap map[string]interface{}
 		)
 		dataMap, err = c.ConvertDataForRecord(ctx, data, table)
 		if err != nil {
@@ -615,13 +604,21 @@ func (c *Core) DoUpdate(ctx context.Context, link Link, table string, data inter
 		}
 		for _, k := range keysInSequence {
 			v := dataMap[k]
-			switch value := v.(type) {
-			case *Counter:
-				counterHandler(k, *value)
-
-			case Counter:
-				counterHandler(k, value)
-
+			switch v.(type) {
+			case Counter, *Counter:
+				var counter Counter
+				switch value := v.(type) {
+				case Counter:
+					counter = value
+				case *Counter:
+					counter = *value
+				}
+				if counter.Value == 0 {
+					continue
+				}
+				operator, columnVal := c.getCounterAlter(counter)
+				fields = append(fields, fmt.Sprintf("%s=%s%s?", c.QuoteWord(k), c.QuoteWord(counter.Field), operator))
+				params = append(params, columnVal)
 			default:
 				if s, ok := v.(Raw); ok {
 					fields = append(fields, c.QuoteWord(k)+"="+gconv.String(s))
@@ -789,9 +786,14 @@ func (c *Core) IsSoftCreatedFieldName(fieldName string) bool {
 // The internal handleArguments function might be called twice during the SQL procedure,
 // but do not worry about it, it's safe and efficient.
 func (c *Core) FormatSqlBeforeExecuting(sql string, args []interface{}) (newSql string, newArgs []interface{}) {
-	// DO NOT do this as there may be multiple lines and comments in the sql.
-	// sql = gstr.Trim(sql)
-	// sql = gstr.Replace(sql, "\n", " ")
-	// sql, _ = gregex.ReplaceString(`\s{2,}`, ` `, sql)
 	return handleSliceAndStructArgsForSql(sql, args)
+}
+
+// getCounterAlter
+func (c *Core) getCounterAlter(counter Counter) (operator string, columnVal float64) {
+	operator, columnVal = "+", counter.Value
+	if columnVal < 0 {
+		operator, columnVal = "-", -columnVal
+	}
+	return
 }

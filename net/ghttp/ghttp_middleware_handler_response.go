@@ -37,7 +37,7 @@ func MiddlewareHandlerResponse(r *Request) {
 	r.Middleware.Next()
 
 	// There's custom buffer content, it then exits current handler.
-	if r.Response.BufferLength() > 0 {
+	if r.Response.BufferLength() > 0 || r.Response.Writer.BytesWritten() > 0 {
 		return
 	}
 
@@ -71,7 +71,7 @@ func MiddlewareHandlerResponse(r *Request) {
 			default:
 				code = gcode.CodeUnknown
 			}
-			// It creates error as it can be retrieved by other middlewares.
+			// It creates an error as it can be retrieved by other middlewares.
 			err = gerror.NewCode(code, msg)
 			r.SetError(err)
 		} else {

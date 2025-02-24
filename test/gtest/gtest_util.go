@@ -220,7 +220,6 @@ func AssertLE(value, expect interface{}) {
 // AssertIN checks `value` is IN `expect`.
 // The `expect` should be a slice,
 // but the `value` can be a slice or a basic type variable.
-// TODO map support.
 // TODO: gconv.Strings(0) is not [0]
 func AssertIN(value, expect interface{}) {
 	var (
@@ -249,6 +248,14 @@ func AssertIN(value, expect interface{}) {
 			expectStr = gconv.String(expect)
 		)
 		passed = gstr.Contains(expectStr, valueStr)
+	case reflect.Map:
+		expectMap := gconv.Map(expect)
+		for _, v1 := range gconv.Strings(value) {
+			if _, exists := expectMap[v1]; !exists {
+				passed = false
+				break
+			}
+		}
 	default:
 		panic(fmt.Sprintf(`[ASSERT] INVALID EXPECT VALUE TYPE: %v`, expectKind))
 	}
@@ -260,7 +267,6 @@ func AssertIN(value, expect interface{}) {
 // AssertNI checks `value` is NOT IN `expect`.
 // The `expect` should be a slice,
 // but the `value` can be a slice or a basic type variable.
-// TODO map support.
 func AssertNI(value, expect interface{}) {
 	var (
 		passed     = true
@@ -287,6 +293,14 @@ func AssertNI(value, expect interface{}) {
 			expectStr = gconv.String(expect)
 		)
 		passed = !gstr.Contains(expectStr, valueStr)
+	case reflect.Map:
+		expectMap := gconv.Map(expect)
+		for _, v1 := range gconv.Strings(value) {
+			if _, exists := expectMap[v1]; exists {
+				passed = false
+				break
+			}
+		}
 	default:
 		panic(fmt.Sprintf(`[ASSERT] INVALID EXPECT VALUE TYPE: %v`, expectKind))
 	}
@@ -315,35 +329,44 @@ func compareMap(value, expect interface{}) error {
 		rvValue  = reflect.ValueOf(value)
 		rvExpect = reflect.ValueOf(expect)
 	)
-	if rvExpect.Kind() == reflect.Map {
-		if rvValue.Kind() == reflect.Map {
-			if rvExpect.Len() == rvValue.Len() {
-				// Turn two interface maps to the same type for comparison.
-				// Direct use of rvValue.MapIndex(key).Interface() will panic
-				// when the key types are inconsistent.
-				mValue := make(map[string]string)
-				mExpect := make(map[string]string)
-				ksValue := rvValue.MapKeys()
-				ksExpect := rvExpect.MapKeys()
-				for _, key := range ksValue {
-					mValue[gconv.String(key.Interface())] = gconv.String(rvValue.MapIndex(key).Interface())
-				}
-				for _, key := range ksExpect {
-					mExpect[gconv.String(key.Interface())] = gconv.String(rvExpect.MapIndex(key).Interface())
-				}
-				for k, v := range mExpect {
-					if v != mValue[k] {
-						return fmt.Errorf(`[ASSERT] EXPECT VALUE map["%v"]:%v == map["%v"]:%v`+
-							"\nGIVEN : %v\nEXPECT: %v", k, mValue[k], k, v, mValue, mExpect)
-					}
-				}
-			} else {
-				return fmt.Errorf(`[ASSERT] EXPECT MAP LENGTH %d == %d`, rvValue.Len(), rvExpect.Len())
-			}
-		} else {
-			return fmt.Errorf(`[ASSERT] EXPECT VALUE TO BE A MAP, BUT GIVEN "%s"`, rvValue.Kind())
+
+	if rvExpect.Kind() != reflect.Map {
+		return nil
+	}
+
+	if rvValue.Kind() != reflect.Map {
+		return fmt.Errorf(`[ASSERT] EXPECT VALUE TO BE A MAP, BUT GIVEN "%s"`, rvValue.Kind())
+	}
+
+	if rvExpect.Len() != rvValue.Len() {
+		return fmt.Errorf(`[ASSERT] EXPECT MAP LENGTH %d == %d`, rvValue.Len(), rvExpect.Len())
+	}
+
+	// Turn two interface maps to the same type for comparison.
+	// Direct use of rvValue.MapIndex(key).Interface() will panic
+	// when the key types are inconsistent.
+	var (
+		mValue   = make(map[string]string)
+		mExpect  = make(map[string]string)
+		ksValue  = rvValue.MapKeys()
+		ksExpect = rvExpect.MapKeys()
+	)
+
+	for _, key := range ksValue {
+		mValue[gconv.String(key.Interface())] = gconv.String(rvValue.MapIndex(key).Interface())
+	}
+
+	for _, key := range ksExpect {
+		mExpect[gconv.String(key.Interface())] = gconv.String(rvExpect.MapIndex(key).Interface())
+	}
+
+	for k, v := range mExpect {
+		if v != mValue[k] {
+			return fmt.Errorf(`[ASSERT] EXPECT VALUE map["%v"]:%v == map["%v"]:%v`+
+				"\nGIVEN : %v\nEXPECT: %v", k, mValue[k], k, v, mValue, mExpect)
 		}
 	}
+
 	return nil
 }
 
@@ -364,9 +387,9 @@ func AssertNil(value interface{}) {
 // which will be joined with current system separator and returned with the path.
 func DataPath(names ...string) string {
 	_, path, _ := gdebug.CallerWithFilter([]string{pathFilterKey})
-	path = filepath.Dir(path) + "/testdata"
+	path = filepath.Join(filepath.Dir(path), "testdata")
 	for _, name := range names {
-		path += "/" + name
+		path = filepath.Join(path, name)
 	}
 	return filepath.FromSlash(path)
 }
