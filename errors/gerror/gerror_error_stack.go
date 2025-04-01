@@ -142,9 +142,10 @@ func loopLinesOfStackInfo(st stack, info *stackInfo, isStackModeBrief bool) {
 			file, line := fn.FileLine(p - 1)
 			if isStackModeBrief {
 				// filter whole GoFrame packages stack paths.
-				if strings.Contains(file, consts.StackFilterKeyForGoFrame) {
+				if strings.Contains(file, consts.StackFilterKeyForGoFrame) || strings.Contains(file, consts.StackFilterKeyForGoFrameFork) {
 					continue
 				}
+
 			} else {
 				// package path stack filtering.
 				if strings.Contains(file, stackFilterKeyLocal) {
