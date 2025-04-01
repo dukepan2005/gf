@@ -14,6 +14,15 @@ import (
 	"github.com/gogf/gf/v2/text/gregex"
 )
 
+func Test_GetConverter(t *testing.T) {
+	gtest.C(t, func(t *gtest.T) {
+		c := GetConverter()
+		s, err := c.String(1)
+		t.AssertNil(err)
+		t.AssertEQ(s, "1")
+	})
+}
+
 func Test_HookSelect_Regex(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		var (
@@ -294,6 +303,40 @@ func Test_parseConfigNodeLink_WithType(t *testing.T) {
 		t.Assert(newNode.Extra, ``)
 		t.Assert(newNode.Charset, `utf8`)
 		t.Assert(newNode.Protocol, `unix`)
+	})
+	// https://github.com/gogf/gf/issues/4059
+	gtest.C(t, func(t *gtest.T) {
+		node := &ConfigNode{
+			Link: "tidb:2hcmRccccxxx9Fizz.root:wP3xxxxPIDc@tcp(xxxx.tidbcloud.com:4000)/db_name?tls=true",
+		}
+		newNode, err := parseConfigNodeLink(node)
+		t.AssertNil(err)
+		t.Assert(newNode.Type, `tidb`)
+		t.Assert(newNode.User, `2hcmRccccxxx9Fizz.root`)
+		t.Assert(newNode.Pass, `wP3xxxxPIDc`)
+		t.Assert(newNode.Host, `xxxx.tidbcloud.com`)
+		t.Assert(newNode.Port, `4000`)
+		t.Assert(newNode.Name, `db_name`)
+		t.Assert(newNode.Extra, `tls=true`)
+		t.Assert(newNode.Charset, `utf8`)
+		t.Assert(newNode.Protocol, `tcp`)
+	})
+	gtest.C(t, func(t *gtest.T) {
+		node := &ConfigNode{
+			Type: "tidb",
+			Link: "2hcmRccccxxx9Fizz.root:wP3xxxxPIDc@tcp(xxxx.tidbcloud.com:4000)/db_name?tls=true",
+		}
+		newNode, err := parseConfigNodeLink(node)
+		t.AssertNil(err)
+		t.Assert(newNode.Type, `tidb`)
+		t.Assert(newNode.User, `2hcmRccccxxx9Fizz.root`)
+		t.Assert(newNode.Pass, `wP3xxxxPIDc`)
+		t.Assert(newNode.Host, `xxxx.tidbcloud.com`)
+		t.Assert(newNode.Port, `4000`)
+		t.Assert(newNode.Name, `db_name`)
+		t.Assert(newNode.Extra, `tls=true`)
+		t.Assert(newNode.Charset, `utf8`)
+		t.Assert(newNode.Protocol, `tcp`)
 	})
 }
 
